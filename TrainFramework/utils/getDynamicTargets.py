@@ -70,7 +70,7 @@ def is_point_in_bbox(point, bbox):
         return False
 
 class getTargets(nn.Module):
-    def __init__(self, model_input_size, num_classes=2, default_inner_proportion=0.7, default_guassion_value=0.3, scale=80., stride=2, cuda=True):
+    def __init__(self, model_input_size, num_classes=2, default_inner_proportion=0.7, default_guassion_value=0.3, scale=80., stride=2, cuda=True, assign_method=None):
         super(getTargets, self).__init__()
         self.model_input_size = model_input_size#(672,384)#img_w,img_h
         self.num_classes = num_classes
@@ -81,6 +81,7 @@ class getTargets(nn.Module):
         self.default_guassion_value = default_guassion_value
 
         self.cuda = cuda
+        self.assign_method=assign_method
 
     # def forward(self, batch_size, bboxes_bs):
     def forward(self, input, bboxes_bs):
@@ -129,7 +130,12 @@ class getTargets(nn.Module):
         for b in range(bs):
             bboxes = bboxes_bs[b]
             predict_bboxes = predict_bboxes_bs[b]
-            label_list = self.__get_targets_with_dynamicLableAssign(predict_bbox=predict_bboxes,bboxes=bboxes) ### label_list[0], label_list[1] '1,h,w,c'
+            if self.assign_method == "auto_assign":
+                label_list = self.__get_targets_with_dynamicLableAssign(predict_bbox=predict_bboxes,bboxes=bboxes) ### label_list[0], label_list[1] '1,h,w,c'
+            elif self.assign_method == "auto_guassian_assign":
+                label_list = self.__get_targets_with_dynamicLableAssign_SimOTA_Gaussion_OC(predict_bbox=predict_bboxes,bboxes=bboxes) ### label_list[0], label_list[1] '1,h,w,c'
+            else:
+                raise print("assign_method error!")
             targets_cls.append(label_list[0])
             targets_loc.append(label_list[1])
         targets_cls = torch.cat(targets_cls, 0) ### 'bs,h,w,c' format tensor

@@ -29,13 +29,19 @@ class opts(object):
                             help='fusion_method: concat or scm')
         
         self.parser.add_argument('--assign_method', default='guassian_assign', type=str,
-                            help='assign_method: The label assign method. binary_assign, guassian_assign or auto_assign')
+                            help='assign_method: The label assign method. binary_assign, guassian_assign, auto_assign, or auto_guassian_assign')
         
         self.parser.add_argument('--Add_name', default='0816_1', type=str,
                             help='Add_name: add name to logs and pic')
         ######### for train
         self.parser.add_argument('--Batch_size', default=8, type=int,
                             help='Batch_size: The size of batch.')
+        
+        self.parser.add_argument('--data_augmentation', default=True, type=bool,
+                            help='data_augmentation: Determin whether to augmentate the dataset.')
+        
+        self.parser.add_argument('--pretrain_model_path', default="logs/non.pth", type=str,
+                            help='pretrain_model_path: the pretrain model to speed train.')
         
         self.parser.add_argument('--data_root_path', default="../../dataset/FBD-SV-2024/", type=str,
                             help='data_root_path: The path of the dataset.')
@@ -46,6 +52,15 @@ class opts(object):
         self.parser.add_argument('--video_val_annotation_path', default="./dataloader/val_video_img_label_txt_files/", type=str,
                             help='video_val_annotation_path: The path of the val annotation files.')
         
+        self.parser.add_argument('--start_Epoch', default=0, type=int,
+                            help='start_Epoch: the start epoch.')
+        
+        self.parser.add_argument('--middle_Epoch', default=30, type=int,
+                            help='start_Epoch: the start epoch.')
+        
+        self.parser.add_argument('--end_Epoch', default=100, type=int,
+                            help='end_Epoch: the end epoch.')
+
         ######### for test
         self.parser.add_argument('--model_name', default="FB_object_detect_model.pth", type=str,
                             help='model_name: The model name for loade.')

@@ -378,16 +378,14 @@ if __name__ == "__main__":
     #-------------------------------------------#
     #   load model
     #-------------------------------------------#
-    model_path = "logs/five/384_672/GRG_multiinput_cspdarknet53_ga_0816_1/Epoch45-Total_Loss0.4866-Val_Loss2.1744-AP_50_0.7044.pth"
-    # model_path = "logs/non.pth"
-    if os.path.exists(model_path):
+    if os.path.exists(opt.pretrain_model_path):
         print('Loading weights into state dict...')
         if Cuda:
             device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         else:
             device = torch.device('cpu')
         model_dict = model.state_dict()
-        pretrained_dict = torch.load(model_path, map_location=device)
+        pretrained_dict = torch.load(opt.pretrain_model_path, map_location=device)
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if np.shape(model_dict[k]) ==  np.shape(v)}
         model_dict.update(pretrained_dict)
         model.load_state_dict(model_dict)
@@ -424,19 +422,21 @@ if __name__ == "__main__":
     #------------------------------------------------------#
     lr = 1e-3
     Batch_size = opt.Batch_size
-    Freeze_Epoch = second_start_epoch
-    # Freeze_Epoch = 85
-    Unfreeze_Epoch = 100
-    # Unfreeze_Epoch = 200
+
+    start_Epoch = opt.start_Epoch
+    middle_Epoch = opt.middle_Epoch
+    end_Epoch = opt.end_Epoch
 
     optimizer = optim.Adam(net.parameters(),lr,weight_decay=5e-4)
     lr_scheduler = optim.lr_scheduler.StepLR(optimizer,step_size=1,gamma=0.95)
     
-    train_data = CustomDataset(train_lines, (model_input_size[1], model_input_size[0]), image_path=train_dataset_image_path, input_mode=opt.input_mode, continues_num=opt.input_img_num)
+    train_data = CustomDataset(train_lines, (model_input_size[1], model_input_size[0]), image_path=train_dataset_image_path,
+                               input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=opt.data_augmentation)
     train_dataloader = DataLoader(train_data, batch_size=Batch_size, shuffle=True, num_workers=4, pin_memory=True, collate_fn=dataset_collate)
     # train_dataloader = DataLoader(train_data, batch_size=Batch_size, shuffle=True, num_workers=4, pin_memory=True)
     
-    val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path, input_mode=opt.input_mode, continues_num=opt.input_img_num)
+    val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path,
+                             input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=False)
     val_dataloader = DataLoader(val_data, batch_size=Batch_size, shuffle=True, num_workers=4, pin_memory=True, collate_fn=dataset_collate)
     # val_dataloader = DataLoader(val_data, batch_size=Batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
@@ -450,7 +450,7 @@ if __name__ == "__main__":
         param.requires_grad = True
 
     largest_AP_50=0
-    for epoch in range(Freeze_Epoch,Unfreeze_Epoch):
+    for epoch in range(start_Epoch,middle_Epoch):
         train_loss, val_loss,largest_AP_50_record, AP_50 = fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,train_dataloader,val_dataloader,Unfreeze_Epoch,Cuda,save_model_dir, labels_to_results=labels_to_results, detect_post_process=detect_post_process)
         largest_AP_50 = largest_AP_50_record
         if (epoch+1)>=2:
@@ -459,7 +459,7 @@ if __name__ == "__main__":
             draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
         lr_scheduler.step()
     
-    lr = 1e-3 * (0.95**30)
+    lr = 1e-3 * (0.95**middle_Epoch)
     optimizer = optim.Adam(net.parameters(),lr,weight_decay=5e-4)
     lr_scheduler = optim.lr_scheduler.StepLR(optimizer,step_size=1,gamma=0.95)
 
@@ -468,9 +468,8 @@ if __name__ == "__main__":
     video_val_annotation_files = os.listdir(opt.video_val_annotation_path)
     num_val_video = len(video_val_annotation_files)
 
-    Freeze_Epoch = 30
-    Unfreeze_Epoch = 100
-    for epoch in range(Freeze_Epoch,Unfreeze_Epoch):
+
+    for epoch in range(middle_Epoch,end_Epoch):
         random.shuffle(video_train_annotation_files)
         total_loss = 0
         for video_train_annotation_file in video_train_annotation_files:
@@ -479,7 +478,8 @@ if __name__ == "__main__":
                 video_length = len(train_lines)
             video_name = video_train_annotation_file.split("_")[0] + "_" + video_train_annotation_file.split("_")[1]
             train_dataset_image_path = opt.data_root_path + "VID/images/train/" + video_name + "/"
-            train_data = CustomDataset(train_lines, (model_input_size[1], model_input_size[0]), image_path=train_dataset_image_path, input_mode=opt.input_mode, continues_num=opt.input_img_num, assign_method=opt.assign_method)
+            train_data = CustomDataset(train_lines, (model_input_size[1], model_input_size[0]), image_path=train_dataset_image_path,
+                                       input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=opt.data_augmentation)
             train_dataloader = DataLoader(train_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
 
             total_loss += train_one_video(net,loss_func,video_length,train_dataloader,Cuda)
@@ -495,7 +495,8 @@ if __name__ == "__main__":
                 video_length = len(train_lines)
             video_name = video_val_annotation_file.split("_")[0] + "_" + video_val_annotation_file.split("_")[1]
             val_dataset_image_path = opt.data_root_path + "VID/images/val/" + video_name + "/"
-            val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path, input_mode=opt.input_mode, continues_num=opt.input_img_num, assign_method=opt.assign_method)
+            val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path,
+                                     input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=False)
             val_dataloader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
 
             val_loss_temp, all_label_obj_list_temp, all_obj_result_list_temp = val_one_video(net,loss_func,video_length,val_dataloader,Cuda,labels_to_results=labels_to_results,detect_post_process=detect_post_process)
@@ -506,7 +507,7 @@ if __name__ == "__main__":
         val_loss /= num_val_video
         AP_50,REC_50,PRE_50=mean_average_precision(all_obj_result_list,all_label_obj_list,iou_threshold=0.5)
 
-        print('Epoch:'+ str(epoch+1) + '/' + str(Unfreeze_Epoch))
+        print('Epoch:'+ str(epoch+1) + '/' + str(end_Epoch))
         print('Total Loss: %.4f || Val Loss: %.4f  || AP_50: %.4f  || REC_50: %.4f  || PRE_50: %.4f' % (total_loss, val_loss, AP_50, REC_50, PRE_50))
         if (epoch+1)%10 == 0:
             if largest_AP_50 < AP_50:
@@ -520,5 +521,8 @@ if __name__ == "__main__":
                 print('Saving state, iter:', str(epoch+1))
                 torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),total_loss,val_loss,AP_50))
                 torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
-    
+        if (epoch+1)>=2:
+            draw_curve_loss(epoch+1, train_loss.item(), val_loss.item(), log_pic_name_loss)
+        if (epoch+1)>=30:
+            draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
         lr_scheduler.step()

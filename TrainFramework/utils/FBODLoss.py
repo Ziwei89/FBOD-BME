@@ -60,13 +60,13 @@ def box_ciou(b1, b2):
     return ciou
 
 class LossFunc(nn.Module): #
-    def __init__(self,num_classes, model_input_size=(672,384), scale=80., stride=2, cuda=True,gettargets=False):
+    def __init__(self,num_classes, model_input_size=(672,384), scale=80., stride=2, cuda=True,gettargets=False, assign_method=None):
         super(LossFunc, self).__init__()
         self.num_classes = num_classes
         self.model_input_size = model_input_size
         self.scale = scale
          #(model_input_size, num_classes=2, stride=2)
-        self.get_targets = getTargets(model_input_size, num_classes, scale, stride, cuda)
+        self.get_targets = getTargets(model_input_size, num_classes, scale, stride, cuda, assign_method)
         self.cuda = cuda
         self.gettargets = gettargets
     
