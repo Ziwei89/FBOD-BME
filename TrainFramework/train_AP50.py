@@ -428,8 +428,6 @@ if __name__ == "__main__":
     with open(val_annotation_path) as f:
         val_lines = f.readlines()
         num_val = len(val_lines)
-
-    second_start_epoch = 0
     
     #------------------------------------------------------#
     #------------------------------------------------------#
