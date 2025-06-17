@@ -375,8 +375,8 @@ class getTargets(nn.Module):
                             position_iou_value_dic[(i,j)] = iou_filter[i][j]
                         
                         ref_point_position = []
-                        ref_point_position.append(j*(self.image_size[0]/self.out_feature_size[0]) + (self.image_size[0]/self.out_feature_size[0])/2) #### x
-                        ref_point_position.append(i*(self.image_size[1]/self.out_feature_size[1]) + (self.image_size[1]/self.out_feature_size[1])/2) #### y
+                        ref_point_position.append(j*(self.model_input_size[0]/self.out_feature_size[0]) + (self.model_input_size[0]/self.out_feature_size[0])/2) #### x
+                        ref_point_position.append(i*(self.model_input_size[1]/self.out_feature_size[1]) + (self.model_input_size[1]/self.out_feature_size[1])/2) #### y
 
                         result = is_point_in_ellipse(ref_point_position, ellipse_parameters, [guassion_variance_x, guassion_variance_y])
                         if result[0]:# The point is in inner ellipse.
@@ -393,7 +393,7 @@ class getTargets(nn.Module):
                             points_label_map[(i*int(self.out_feature_size[0]) + j) * 6 + 5] = lamda # lamda parameter # Note: This parameter is not used in this version.
                         else:# The point is out inner ellipse.
                             if is_point_in_bbox(ref_point_position, bbox):# The point is in object bounding box but out inner ellipse.
-                                class_label_map[(i*int(self.out_feature_size[0]) + j) * self.classes_num + 0] = 0
+                                class_label_map[(i*int(self.out_feature_size[0]) + j) * self.num_classes + 0] = 0
                     else:# The point is not in positive anchor points.
                         class_label_map[(i*int(self.out_feature_size[0]) + j) * self.num_classes + 0] = 0
 

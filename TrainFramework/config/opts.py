@@ -13,7 +13,7 @@ class opts(object):
         self.parser.add_argument('--aggregation_output_channels', default=16, type=int,
                             help='aggregation_output_channels: The output channels of the aggregation module')
         
-        self.parser.add_argument('--input_mode', default="GRG", type=str,
+        self.parser.add_argument('--input_mode', default="RGB", type=str,
                             help='input_mode: "RGB" or "GRG". "RGB": mean RGB ..RGB, "GRG": mean GRAY ..RGB.. GRAY')
         
         self.parser.add_argument('--mem_x_channels', default=4, type=int,
