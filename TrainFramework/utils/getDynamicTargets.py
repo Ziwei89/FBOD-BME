@@ -268,6 +268,8 @@ class getTargets(nn.Module):
     ########SimOTA-Gaussion-OC  
     def __get_targets_with_dynamicLableAssign_SimOTA_Gaussion_OC(self, predict_bbox, bboxes): ### SimOTA Gaussion label assignment algorithm for One-Category task and Single-scale model (SimOTA-OC)
 
+        # print("predict_bbox:")
+        # print(predict_bbox)
         FloatTensor = torch.cuda.FloatTensor if self.cuda else torch.FloatTensor
 
         ### predict_bbox feature_h, feature_w, 4 (4: cx, cy, o_w, o_h)
@@ -338,9 +340,12 @@ class getTargets(nn.Module):
                 for j in range(min_wight_index, max_wight_index+1):
                     first_filter[i*int(self.out_feature_size[0]) + j] = 1
             first_filter = first_filter.reshape(int(self.out_feature_size[1]), int(self.out_feature_size[0]))
+            # print("first_filter:")
+            # print(first_filter)
             
             iou_filter = iou * first_filter  # feature_h, feature_w  # first filter: gt box filter # Only iou values within the gt box region are kept.
-
+            # print("iou_filter:")
+            # print(iou_filter)
             dynamic_k = np.sum(iou_filter)
             if dynamic_k < 1:
                 dynamic_k = 1

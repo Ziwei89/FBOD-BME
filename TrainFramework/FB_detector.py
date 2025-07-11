@@ -139,3 +139,15 @@ class FB_Postprocess(object):
             for batch_detection in batch_detections:
                 obj_result_list.append(FBObj(score=batch_detection[4], image_id=image_id, bbox=batch_detection[:4]))
         return obj_result_list
+    
+    def Process_video(self, model_outputs, image_id):
+        obj_result_list = []
+        outputs = self.boxdecoder(model_outputs)
+        try:
+            output = outputs[0]
+            detections = output.cpu().numpy()
+        except:
+            return obj_result_list
+        for detection in detections:
+            obj_result_list.append(FBObj(score=detection[4], image_id=image_id, bbox=detection[:4]))
+        return obj_result_list
