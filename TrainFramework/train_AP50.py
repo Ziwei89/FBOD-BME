@@ -89,6 +89,12 @@ def LablesToResults_video(labels, image_id):
         label_obj_list.append(FBObj(score=1., image_id=image_id, bbox=box))
     return label_obj_list
 
+def generate_batch_mem_queue_x(batch_size, queue_size=3, model_input_size=(384,672), cuda=True):
+    batch_mem_queue_x = torch.zeros(batch_size, 4*queue_size, model_input_size[0], model_input_size[1])
+    if cuda:
+        batch_mem_queue_x.cuda()
+    return batch_mem_queue_x
+
 def init_mem_x_q(queue_size=3, model_input_size=(384,672), cuda=True):
     mem_x_q = Queue(maxsize=queue_size)
     for _ in range(queue_size):
@@ -122,7 +128,7 @@ def concat_mem_x_q(mem_x_q):
 #     ave_loss = total_loss/queue_size
 #     return ave_loss
 
-def train_one_video(net, loss_func, mov_ave_loss, epoch, end_Epoch, video_num, num_train_video, video_length, gen, mem_x_q, cuda):
+def train_one_video(net, loss_func, mov_ave_loss, epoch, end_Epoch, video_num, num_train_video, video_length, gen, mem_x_q, cuda, detect_post_process):
     net.train()
     total_loss = 0
     with tqdm(total=video_length,desc=f'Epoch {epoch + 1}/{end_Epoch}, video {video_num + 1}/{num_train_video}',postfix=dict,mininterval=0.3) as pbar:
@@ -141,7 +147,14 @@ def train_one_video(net, loss_func, mov_ave_loss, epoch, end_Epoch, video_num, n
                 mem_queue_x = concat_mem_x_q(mem_x_q)
             optimizer.zero_grad()
 
-            outputs = net(images, mem_queue_x, mem_queue_input = True)
+            outputs = net(images, mem_queue_x)
+            # obj_result_list = detect_post_process.Process(outputs, iteration)
+            # obj_num = len(obj_result_list)
+            # for i in range(obj_num):
+            #     print("obj_result_list[{}].image_id, obj_result_list[{}].bbox:".format(i,i))
+            #     print(obj_result_list[i].image_id, obj_result_list[i].bbox)
+            # print("labels:")
+            # print(targets)
 
             _ = mem_x_q.get()
             mem_x = outputs[2]
@@ -174,7 +187,7 @@ def val_one_video(net, loss_func, epoch, end_Epoch, video_num, num_train_video, 
             if iteration >= video_length:
                 break
             images_val, targets_val = batch[0], batch[1]
-            labels = copy.deepcopy(targets_val)
+            labels_list = copy.deepcopy(targets_val)
             with torch.no_grad():
                 if cuda:
                     images_val = Variable(torch.from_numpy(images_val)).to(torch.device('cuda:0'))
@@ -184,7 +197,7 @@ def val_one_video(net, loss_func, epoch, end_Epoch, video_num, num_train_video, 
                     targets_val = [Variable(torch.from_numpy(fature_label).type(torch.FloatTensor)) for fature_label in targets_val] ##
                 
                 mem_queue_x = concat_mem_x_q(mem_x_q)
-                outputs = net(images_val, mem_queue_x, mem_queue_input = True)
+                outputs = net(images_val, mem_queue_x)
 
                 _ = mem_x_q.get()
                 mem_x = outputs[2]
@@ -196,15 +209,18 @@ def val_one_video(net, loss_func, epoch, end_Epoch, video_num, num_train_video, 
                     loss = loss_func(outputs, targets_val)
                 val_loss += loss
                 if (epoch+1) >= 30:
-                    image_id = total_frame_length + iteration
-                    label_obj_list = LablesToResults_video(labels, image_id)
+                    # image_id = total_frame_length + iteration
+                    # label_obj_list = LablesToResults_video(labels, image_id)
+                    label_obj_list = labels_to_results.covert(labels_list, total_frame_length + iteration)
+                    
                     # obj_num = len(label_obj_list)
                     # for i in range(obj_num):
                     #     print("label_obj_list[{}].image_id, label_obj_list[{}].bbox:".format(i,i))
                     #     print(label_obj_list[i].image_id, label_obj_list[i].bbox)
                     all_label_obj_list += label_obj_list
 
-                    obj_result_list = detect_post_process.Process_video(outputs, image_id)
+                    # obj_result_list = detect_post_process.Process_video(outputs, image_id)
+                    obj_result_list = detect_post_process.Process(outputs, total_frame_length + iteration)
                     # obj_num = len(obj_result_list)
                     # for i in range(obj_num):
                     #     print("obj_result_list[{}].image_id, obj_result_list[{}].bbox:".format(i,i))
@@ -218,7 +234,7 @@ def val_one_video(net, loss_func, epoch, end_Epoch, video_num, num_train_video, 
     else:
         return val_loss/video_length, None, None
 
-def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,gen,genval,Epoch,cuda,save_model_dir,labels_to_results,detect_post_process):
+def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,gen,genval,Epoch,batch_mem_queue_x,cuda,save_model_dir,labels_to_results,detect_post_process):
     total_loss = 0
     val_loss = 0
     start_time = time.time()
@@ -242,7 +258,7 @@ def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,ge
                     images = Variable(torch.from_numpy(images))
                     targets = [Variable(torch.from_numpy(fature_label).type(torch.FloatTensor)) for fature_label in targets] ##
             optimizer.zero_grad()
-            outputs = net(images)
+            outputs = net(images, batch_mem_queue_x)
             if loss_func.cuda == False:
                 loss = loss_func(outputs, targets)
             else:
@@ -284,7 +300,7 @@ def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,ge
                     images_val = Variable(torch.from_numpy(images_val))
                     targets_val = [Variable(torch.from_numpy(fature_label).type(torch.FloatTensor)) for fature_label in targets_val] ##
                 optimizer.zero_grad()
-                outputs = net(images_val)
+                outputs = net(images_val, batch_mem_queue_x)
 
                 if loss_func.cuda == False:
                     loss = loss_func(outputs, targets_val)
@@ -490,9 +506,10 @@ if __name__ == "__main__":
     for param in model.extract_features.backbone.parameters():
         param.requires_grad = True
 
+    batch_mem_queue_x = generate_batch_mem_queue_x(batch_size=Batch_size, queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
     largest_AP_50=0
     for epoch in range(start_Epoch,middle_Epoch):
-        train_loss, val_loss,largest_AP_50_record, AP_50 = fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,train_dataloader,val_dataloader,middle_Epoch,Cuda,save_model_dir, labels_to_results=labels_to_results, detect_post_process=detect_post_process)
+        train_loss, val_loss,largest_AP_50_record, AP_50 = fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,train_dataloader,val_dataloader,middle_Epoch,batch_mem_queue_x,Cuda,save_model_dir, labels_to_results=labels_to_results, detect_post_process=detect_post_process)
         largest_AP_50 = largest_AP_50_record
         if (epoch+1)>=2:
             draw_curve_loss(epoch+1, train_loss.item(), val_loss.item(), log_pic_name_loss)
@@ -509,6 +526,8 @@ if __name__ == "__main__":
     video_val_annotation_files = os.listdir(opt.video_val_annotation_path)
     num_val_video = len(video_val_annotation_files)
 
+    detect_post_process = FB_Postprocess(batch_size=1, model_input_size=model_input_size)
+    labels_to_results = LablesToResults(batch_size=1)
 
     for epoch in range(middle_Epoch, end_Epoch):
         random.shuffle(video_train_annotation_files)
@@ -527,7 +546,7 @@ if __name__ == "__main__":
                                     input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=opt.data_augmentation)
             train_dataloader = DataLoader(train_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
             mem_x_q = init_mem_x_q(queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
-            train_loss_, mov_ave_loss_= train_one_video(net, loss_func, mov_ave_loss, epoch, end_Epoch, video_num, num_train_video, video_length, train_dataloader, mem_x_q, Cuda)
+            train_loss_, mov_ave_loss_= train_one_video(net, loss_func, mov_ave_loss, epoch, end_Epoch, video_num, num_train_video, video_length, train_dataloader, mem_x_q, Cuda, detect_post_process=detect_post_process)
             train_loss += train_loss_
             mov_ave_loss = mov_ave_loss_
         train_loss /= num_train_video
@@ -553,7 +572,7 @@ if __name__ == "__main__":
             val_loss = val_loss + val_loss_temp
             if (epoch+1) >= 30:
                 all_label_obj_list = all_label_obj_list + all_label_obj_list_temp
-                all_obj_result_list = all_obj_result_list + all_obj_result_list
+                all_obj_result_list = all_obj_result_list + all_obj_result_list_temp
         val_loss /= num_val_video
         if (epoch+1) >= 30:
             AP_50,REC_50,PRE_50=mean_average_precision(all_obj_result_list,all_label_obj_list,iou_threshold=0.5)

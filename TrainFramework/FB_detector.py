@@ -127,15 +127,16 @@ class FB_Postprocess(object):
     def Process(self, model_outputs, iteration):
         obj_result_list = []
         outputs = self.boxdecoder(model_outputs)
-
         for batch_id in range(self.batch_size):
             image_id = self.batch_size*iteration + batch_id
             try:
-                batch_detections = outputs[batch_id].cpu().numpy()
+                if outputs[batch_id].requires_grad:
+                    outputs_batch_id = outputs[batch_id].detach()
+                else:
+                    outputs_batch_id = outputs[batch_id]
+                batch_detections = outputs_batch_id.cpu().numpy()
             except:
                 continue
-            # print("batch_detections")
-            # print(batch_detections)
             for batch_detection in batch_detections:
                 obj_result_list.append(FBObj(score=batch_detection[4], image_id=image_id, bbox=batch_detection[:4]))
         return obj_result_list

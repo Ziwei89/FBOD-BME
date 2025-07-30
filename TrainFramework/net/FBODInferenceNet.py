@@ -46,9 +46,9 @@ class FBODInferenceBody(nn.Module):
         self.FBODetection_head_pos = FBODetection_head([32, 4],32)
 
 
-    def forward(self, x, mem_queue_x=None, mem_queue_input=False):
+    def forward(self, x, mem_queue_x):
 
-        out0, mem_x = self.aggregate_features(x, mem_queue_x, mem_queue_input) # output channels = 32
+        out0, mem_x = self.aggregate_features(x, mem_queue_x) # output channels = 32
         out1 = self.extract_features(out0) # output channels = 32
 
         conf = self.FBODetection_head_conf(out1) # output channels = 1
