@@ -75,7 +75,7 @@ class FB_detector(object):
             if self.cuda:
                 images = images.cuda()
             t1 = time.time()
-            predictions = self.net(images, mem_queue_x, True)
+            predictions = self.net(images, mem_queue_x)
             t2 = time.time()
             print("run model: ", t2-t1)
 

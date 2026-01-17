@@ -6,4 +6,5 @@ data/*
 **/*.png
 **/*.txt
 **/logs/*
+**/*.json
 **/*.sh

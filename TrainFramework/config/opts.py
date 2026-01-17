@@ -10,7 +10,7 @@ class opts(object):
         self.parser.add_argument('--input_img_num', default=5, type=int,
                             help='input_img_num: The continous video frames, input to the model')
         
-        self.parser.add_argument('--aggregation_output_channels', default=16, type=int,
+        self.parser.add_argument('--aggregation_output_channels', default=32, type=int,
                             help='aggregation_output_channels: The output channels of the aggregation module')
         
         self.parser.add_argument('--input_mode', default="RGB", type=str,
@@ -46,17 +46,23 @@ class opts(object):
         self.parser.add_argument('--data_root_path', default="../../dataset/FBD-SV-2024/", type=str,
                             help='data_root_path: The path of the dataset.')
         
+        self.parser.add_argument('--scale_factor', default=80, type=int,
+                            help='scale_factor: Object scale normalization factor for single scale output model.')
+        
         self.parser.add_argument('--video_train_annotation_path', default="./dataloader/train_video_img_label_txt_files/", type=str,
                             help='video_train_annotation_path: The path of the train annotation files.')
         
         self.parser.add_argument('--video_val_annotation_path', default="./dataloader/val_video_img_label_txt_files/", type=str,
                             help='video_val_annotation_path: The path of the val annotation files.')
         
+        self.parser.add_argument('--lr', default=1e-3, type=float,
+                            help='lr: the learn rate.')
+        
         self.parser.add_argument('--start_Epoch', default=0, type=int,
                             help='start_Epoch: the start epoch.')
         
         self.parser.add_argument('--middle_Epoch', default=30, type=int,
-                            help='start_Epoch: the start epoch.')
+                            help='middle_Epoch: the middle epoch.')
         
         self.parser.add_argument('--end_Epoch', default=100, type=int,
                             help='end_Epoch: the end epoch.')
@@ -65,7 +71,7 @@ class opts(object):
         self.parser.add_argument('--model_name', default="FB_object_detect_model.pth", type=str,
                             help='model_name: The model name for loade.')
         
-        self.parser.add_argument('--video_path', default="../../FBOD-BSPL/dataset/val/videos/", type=str,
+        self.parser.add_argument('--video_path', default="../../dataset/val/videos/", type=str,
                             help='video_path: The video path.')
         
         self.parser.add_argument('--video_name', default="bird_2.mp4", type=str,

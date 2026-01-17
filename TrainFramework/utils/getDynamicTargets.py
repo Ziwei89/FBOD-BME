@@ -266,7 +266,7 @@ class getTargets(nn.Module):
     
     
     ########SimOTA-Gaussion-OC  
-    def __get_targets_with_dynamicLableAssign_SimOTA_Gaussion_OC(self, predict_bbox, bboxes): ### SimOTA Gaussion label assignment algorithm for One-Category task and Single-scale model (SimOTA-OC)
+    def __get_targets_with_dynamicLableAssign_SimOTA_Gaussion_OC(self, predict_bbox, bboxes): ### SimOTA Gaussion label assignment algorithm for One-Category task and Single-scale model (SimOTA-Gaussion-OC)
 
         # print("predict_bbox:")
         # print(predict_bbox)
