@@ -13,6 +13,9 @@ class opts(object):
         self.parser.add_argument('--aggregation_output_channels', default=32, type=int,
                             help='aggregation_output_channels: The output channels of the aggregation module')
         
+        self.parser.add_argument('--aggregation_method', default='relatedatten_memenhance', type=str,
+                            help='aggregation_method: relatedatten_memenhance, relatedatten or convlstm')
+        
         self.parser.add_argument('--input_mode', default="RGB", type=str,
                             help='input_mode: "RGB" or "GRG". "RGB": mean RGB ..RGB, "GRG": mean GRAY ..RGB.. GRAY')
         

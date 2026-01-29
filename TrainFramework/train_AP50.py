@@ -235,7 +235,10 @@ def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,ge
                     images = Variable(torch.from_numpy(images))
                     targets = [Variable(torch.from_numpy(fature_label).type(torch.FloatTensor)) for fature_label in targets] ##
             optimizer.zero_grad()
-            outputs = net(images, batch_mem_queue_x)
+            if batch_mem_queue_x == None:
+                outputs = net(images)
+            else:
+                outputs = net(images, batch_mem_queue_x)
             if loss_func.cuda == False:
                 loss = loss_func(outputs, targets)
             else:
@@ -271,7 +274,10 @@ def fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,ge
                     images_val = Variable(torch.from_numpy(images_val))
                     targets_val = [Variable(torch.from_numpy(fature_label).type(torch.FloatTensor)) for fature_label in targets_val] ##
                 optimizer.zero_grad()
-                outputs = net(images_val, batch_mem_queue_x)
+                if batch_mem_queue_x == None:
+                    outputs = net(images_val)
+                else:
+                    outputs = net(images_val, batch_mem_queue_x)
 
                 if loss_func.cuda == False:
                     loss = loss_func(outputs, targets_val)
@@ -368,7 +374,7 @@ if __name__ == "__main__":
     else:
         raise print("Error! assign_method error.")
     
-    save_model_dir = "logs/" + num_to_english_c_dic[opt.input_img_num] + "/" + opt.model_input_size + "/" + opt.input_mode \
+    save_model_dir = "logs/" + num_to_english_c_dic[opt.input_img_num] + "/" + opt.model_input_size + "/" + opt.aggregation_method + "_" + opt.input_mode \
                              + "_" + opt.backbone_name + "_" + opt.fusion_method + "_" + abbr_assign_method + "_"  + opt.Add_name + "/"
     os.makedirs(save_model_dir, exist_ok=True)
 
@@ -381,6 +387,7 @@ if __name__ == "__main__":
         pass
     else:
         config_txt_file = open(config_txt, 'w')
+        config_txt_file.write("Aggregaton method: " + opt.aggregation_method + "\n")
         config_txt_file.write("Input mode: " + opt.input_mode + "\n")
         config_txt_file.write("Data root path: " + opt.data_root_path + "\n")
         config_txt_file.write("Backbone name: " + opt.backbone_name + "\n")
@@ -418,9 +425,9 @@ if __name__ == "__main__":
     
     # create model
     ### FBODInferenceBody parameters:
-    ### input_img_num=5, aggregation_output_channels=32, input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
+    ### input_img_num=5, aggregation_output_channels=32, aggregation_method="relatedatten_memenhance", input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
     ### backbone_name="cspdarknet53", fusion_method="concat" ### Extract parameters. input_channels equal to aggregation_output_channels.
-    model = FBODInferenceBody(input_img_num=opt.input_img_num, aggregation_output_channels=opt.aggregation_output_channels,
+    model = FBODInferenceBody(input_img_num=opt.input_img_num, aggregation_output_channels=opt.aggregation_output_channels, aggregation_method=opt.aggregation_method,
                               input_mode=opt.input_mode,mem_x_channels=opt.mem_x_channels,mem_queue_length=opt.mem_queue_length, backbone_name=opt.backbone_name, fusion_method=opt.fusion_method)
 
     #-------------------------------------------#
@@ -492,13 +499,11 @@ if __name__ == "__main__":
 
     epoch_size = max(1, num_train//Batch_size)
     epoch_size_val = num_val//Batch_size
-    #------------------------------------#
-    #   解冻后训练
-    #------------------------------------#
-    for param in model.extract_features.backbone.parameters():
-        param.requires_grad = True
 
-    batch_mem_queue_x = generate_batch_mem_queue_x(batch_size=Batch_size, queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
+    if opt.aggregation_method=="relatedatten_memenhance":
+        batch_mem_queue_x = generate_batch_mem_queue_x(batch_size=Batch_size, queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
+    else:
+        batch_mem_queue_x=None
     largest_AP_50=0
     for epoch in range(start_Epoch,middle_Epoch):
         train_loss, val_loss,largest_AP_50_record, AP_50 = fit_one_epoch(largest_AP_50,net,loss_func,epoch,epoch_size,epoch_size_val,train_dataloader,val_dataloader,middle_Epoch,batch_mem_queue_x,Cuda,save_model_dir, labels_to_results=labels_to_results, detect_post_process=detect_post_process)
@@ -509,83 +514,84 @@ if __name__ == "__main__":
             draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
         lr_scheduler.step()
     
-    lr = opt.lr * (0.95**middle_Epoch)
-    optimizer = optim.Adam(net.parameters(),lr,weight_decay=5e-4)
-    lr_scheduler = optim.lr_scheduler.StepLR(optimizer,step_size=1,gamma=0.95)
+    if opt.aggregation_method=="relatedatten_memenhance":
+        lr = opt.lr * (0.95**middle_Epoch)
+        optimizer = optim.Adam(net.parameters(),lr,weight_decay=5e-4)
+        lr_scheduler = optim.lr_scheduler.StepLR(optimizer,step_size=1,gamma=0.95)
 
-    video_train_annotation_files = os.listdir(opt.video_train_annotation_path)
-    num_train_video = len(video_train_annotation_files)
-    video_val_annotation_files = os.listdir(opt.video_val_annotation_path)
-    num_val_video = len(video_val_annotation_files)
+        video_train_annotation_files = os.listdir(opt.video_train_annotation_path)
+        num_train_video = len(video_train_annotation_files)
+        video_val_annotation_files = os.listdir(opt.video_val_annotation_path)
+        num_val_video = len(video_val_annotation_files)
 
-    detect_post_process = FB_Postprocess(batch_size=1, model_input_size=model_input_size, scale=opt.scale_factor)
-    labels_to_results = LablesToResults(batch_size=1)
+        detect_post_process = FB_Postprocess(batch_size=1, model_input_size=model_input_size, scale=opt.scale_factor)
+        labels_to_results = LablesToResults(batch_size=1)
 
-    for epoch in range(middle_Epoch, end_Epoch):
-        random.shuffle(video_train_annotation_files)
-        train_loss = 0
-        num_trained_video = 0
-        for sublist_video_train_annotation_file in iterate_n_elements(video_train_annotation_files, Batch_size):
-            actual_batch_size = len(sublist_video_train_annotation_file)
-            num_trained_video += actual_batch_size
-            list_train_lines, min_video_length, list_train_dataset_image_path= read_train_annotation_files(opt.video_train_annotation_path, opt.data_root_path, sublist_video_train_annotation_file)
-            
-            list_train_dataloader = []
-            for i in range(actual_batch_size):
-                train_data = CustomDataset(list_train_lines[i], (model_input_size[1], model_input_size[0]), image_path=list_train_dataset_image_path[i],
-                                           input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=opt.data_augmentation)
-                train_dataloader = DataLoader(train_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
-                list_train_dataloader.append(train_dataloader)
-            
-            batch_mem_x_q = init_batch_mem_x_q(actual_batch_size, queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
-            train_loss_ = train_videos(net, loss_func, epoch, end_Epoch, num_trained_video, num_train_video, min_video_length, list_train_dataloader, batch_mem_x_q, Cuda)
-            train_loss += train_loss_
-        train_loss = train_loss/math.ceil(num_train_video/actual_batch_size)
+        for epoch in range(middle_Epoch, end_Epoch):
+            random.shuffle(video_train_annotation_files)
+            train_loss = 0
+            num_trained_video = 0
+            for sublist_video_train_annotation_file in iterate_n_elements(video_train_annotation_files, Batch_size):
+                actual_batch_size = len(sublist_video_train_annotation_file)
+                num_trained_video += actual_batch_size
+                list_train_lines, min_video_length, list_train_dataset_image_path= read_train_annotation_files(opt.video_train_annotation_path, opt.data_root_path, sublist_video_train_annotation_file)
+                
+                list_train_dataloader = []
+                for i in range(actual_batch_size):
+                    train_data = CustomDataset(list_train_lines[i], (model_input_size[1], model_input_size[0]), image_path=list_train_dataset_image_path[i],
+                                            input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=opt.data_augmentation)
+                    train_dataloader = DataLoader(train_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
+                    list_train_dataloader.append(train_dataloader)
+                
+                batch_mem_x_q = init_batch_mem_x_q(actual_batch_size, queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
+                train_loss_ = train_videos(net, loss_func, epoch, end_Epoch, num_trained_video, num_train_video, min_video_length, list_train_dataloader, batch_mem_x_q, Cuda)
+                train_loss += train_loss_
+            train_loss = train_loss/math.ceil(num_train_video/actual_batch_size)
 
-        random.shuffle(video_val_annotation_files)
-        val_loss = 0
-        all_label_obj_list = []
-        all_obj_result_list = []
-        total_frame_length = 0
-        for video_num, video_val_annotation_file in enumerate(video_val_annotation_files):
-            with open(opt.video_val_annotation_path + video_val_annotation_file) as f:
-                val_lines = f.readlines()
-                video_length = len(val_lines)
-            video_name = video_val_annotation_file.split("_")[0] + "_" + video_val_annotation_file.split("_")[1]
-            val_dataset_image_path = opt.data_root_path + "VID/images/val/" + video_name + "/"
-            val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path,
-                                     input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=False)
-            val_dataloader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
-            mem_x_q = init_mem_x_q(queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
-            val_loss_temp, all_label_obj_list_temp, all_obj_result_list_temp = val_one_video(net,loss_func, epoch, end_Epoch, video_num, num_val_video, total_frame_length, video_length, val_dataloader, mem_x_q, Cuda, detect_post_process=detect_post_process)
-            total_frame_length += video_length
+            random.shuffle(video_val_annotation_files)
+            val_loss = 0
+            all_label_obj_list = []
+            all_obj_result_list = []
+            total_frame_length = 0
+            for video_num, video_val_annotation_file in enumerate(video_val_annotation_files):
+                with open(opt.video_val_annotation_path + video_val_annotation_file) as f:
+                    val_lines = f.readlines()
+                    video_length = len(val_lines)
+                video_name = video_val_annotation_file.split("_")[0] + "_" + video_val_annotation_file.split("_")[1]
+                val_dataset_image_path = opt.data_root_path + "VID/images/val/" + video_name + "/"
+                val_data = CustomDataset(val_lines, (model_input_size[1], model_input_size[0]), image_path=val_dataset_image_path,
+                                        input_mode=opt.input_mode, continues_num=opt.input_img_num, data_augmentation=False)
+                val_dataloader = DataLoader(val_data, batch_size=1, shuffle=False, num_workers=1, pin_memory=True, collate_fn=dataset_collate)
+                mem_x_q = init_mem_x_q(queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]), cuda=Cuda)
+                val_loss_temp, all_label_obj_list_temp, all_obj_result_list_temp = val_one_video(net,loss_func, epoch, end_Epoch, video_num, num_val_video, total_frame_length, video_length, val_dataloader, mem_x_q, Cuda, detect_post_process=detect_post_process)
+                total_frame_length += video_length
 
-            val_loss = val_loss + val_loss_temp
+                val_loss = val_loss + val_loss_temp
+                if (epoch+1) >= 30:
+                    all_label_obj_list = all_label_obj_list + all_label_obj_list_temp
+                    all_obj_result_list = all_obj_result_list + all_obj_result_list_temp
+            val_loss /= num_val_video
             if (epoch+1) >= 30:
-                all_label_obj_list = all_label_obj_list + all_label_obj_list_temp
-                all_obj_result_list = all_obj_result_list + all_obj_result_list_temp
-        val_loss /= num_val_video
-        if (epoch+1) >= 30:
-            AP_50,REC_50,PRE_50=mean_average_precision(all_obj_result_list,all_label_obj_list,iou_threshold=0.5)
-        else:
-            AP_50,REC_50,PRE_50=0,0,0
+                AP_50,REC_50,PRE_50=mean_average_precision(all_obj_result_list,all_label_obj_list,iou_threshold=0.5)
+            else:
+                AP_50,REC_50,PRE_50=0,0,0
 
-        print('Epoch:'+ str(epoch+1) + '/' + str(end_Epoch))
-        print('Total Loss: %.4f || Val Loss: %.4f  || AP_50: %.4f  || REC_50: %.4f  || PRE_50: %.4f' % (train_loss, val_loss, AP_50, REC_50, PRE_50))
-        if (epoch+1)%10 == 0:
-            if largest_AP_50 < AP_50:
-                largest_AP_50 = AP_50
-            print('Saving state, iter:', str(epoch+1))
-            torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50))
-            torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
-        else:
-            if largest_AP_50 < AP_50:
-                largest_AP_50 = AP_50
+            print('Epoch:'+ str(epoch+1) + '/' + str(end_Epoch))
+            print('Total Loss: %.4f || Val Loss: %.4f  || AP_50: %.4f  || REC_50: %.4f  || PRE_50: %.4f' % (train_loss, val_loss, AP_50, REC_50, PRE_50))
+            if (epoch+1)%10 == 0:
+                if largest_AP_50 < AP_50:
+                    largest_AP_50 = AP_50
                 print('Saving state, iter:', str(epoch+1))
                 torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50))
                 torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
-        if (epoch+1)>=2:
-            draw_curve_loss(epoch+1, train_loss.item(), val_loss.item(), log_pic_name_loss)
-        if (epoch+1)>=30:
-            draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
-        lr_scheduler.step()
+            else:
+                if largest_AP_50 < AP_50:
+                    largest_AP_50 = AP_50
+                    print('Saving state, iter:', str(epoch+1))
+                    torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50))
+                    torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
+            if (epoch+1)>=2:
+                draw_curve_loss(epoch+1, train_loss.item(), val_loss.item(), log_pic_name_loss)
+            if (epoch+1)>=30:
+                draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
+            lr_scheduler.step()

@@ -24,28 +24,28 @@ class FB_detector(object):
     #   Initialize FB_detector
     #---------------------------------------------------#
     ### FBODInferenceBody parameters:
-    ### input_img_num=5, aggregation_output_channels=32, input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
+    ### input_img_num=5, aggregation_output_channels=32, aggregation_method="relatedatten_memenhance", input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
     ### backbone_name="cspdarknet53", fusion_method="concat" ### Extract parameters. input_channels equal to aggregation_output_channels.
     def __init__(self, model_input_size=(384,672),
-                 input_img_num=5, aggregation_output_channels=32, input_mode="GRG",mem_x_channels=4, mem_queue_length=3, backbone_name="cspdarknet53", fusion_method="concat",
+                 input_img_num=5, aggregation_output_channels=32, aggregation_method="relatedatten_memenhance", input_mode="GRG",mem_x_channels=4, mem_queue_length=3, backbone_name="cspdarknet53", fusion_method="concat",
                  abbr_assign_method="ba", Add_name="0812_1", model_name="FB_object_detect_model.pth", scale=80.):
         self.__dict__.update(self._defaults)
 
         
         self.model_input_size=model_input_size
-
+        self.aggregation_method=aggregation_method
         # create model
         self.input_img_num = input_img_num
         ### FBODInferenceBody parameters:
-        ### input_img_num=5, aggregation_output_channels=32, input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
+        ### input_img_num=5, aggregation_output_channels=32, aggregation_method="relatedatten_memenhance", input_mode="GRG", mem_x_channels=4, mem_queue_length=3, ### Aggreagation parameters.
         ### backbone_name="cspdarknet53", fusion_method="concat" ### Extract parameters. input_channels equal to aggregation_output_channels.
-        self.net = FBODInferenceBody(input_img_num=input_img_num, aggregation_output_channels=aggregation_output_channels,
+        self.net = FBODInferenceBody(input_img_num=input_img_num, aggregation_output_channels=aggregation_output_channels, aggregation_method=aggregation_method, 
                                      input_mode=input_mode,mem_x_channels=mem_x_channels,mem_queue_length=mem_queue_length, backbone_name=backbone_name, fusion_method=fusion_method).eval()
 
 
         # load model
         model_path = "logs/" + num_to_english_c_dic[input_img_num] + "/" + str(model_input_size[0]) + "_" + str(model_input_size[1]) + "/" \
-                           + input_mode + "_" + backbone_name + "_" + fusion_method + "_" + abbr_assign_method + "_" + Add_name + "/" + model_name
+                           + aggregation_method + "_" + input_mode + "_" + backbone_name + "_" + fusion_method + "_" + abbr_assign_method + "_" + Add_name + "/" + model_name
         
         print('Loading weights into state dict...')
         device = torch.device('cuda' if self.cuda else 'cpu')
@@ -61,7 +61,7 @@ class FB_detector(object):
         self.boxdecoder = FB_boxdecoder(model_input_size=model_input_size, score_threshold=self.confidence,
                                         nms_thres=self.iou, scale=scale)
     
-    def detect_image(self, images, mem_queue_x, raw_image_shape):
+    def detect_image(self, images, mem_queue_x=None, raw_image_shape=None):
 
         ############## The parameter transfom the output to raw image
         resize_ratio = min(self.model_input_size[0] / raw_image_shape[0], self.model_input_size[1] / raw_image_shape[1]) # h,w
@@ -75,25 +75,34 @@ class FB_detector(object):
             if self.cuda:
                 images = images.cuda()
             t1 = time.time()
-            predictions = self.net(images, mem_queue_x)
+            if self.aggregation_method=="relatedatten_memenhance":
+                predictions = self.net(images, mem_queue_x)
+                mem_x = predictions[2]
+            else:
+                predictions = self.net(images)
             t2 = time.time()
             print("run model: ", t2-t1)
 
-            mem_x = predictions[2]
         outputs = self.boxdecoder(predictions)
         # print("outputs")
         # print(outputs)
         for b in range(len(outputs)):
             outputs[b][:,[0, 2]] = (outputs[b][:,[0, 2]] - offset_left) / resize_ratio
             outputs[b][:,[1, 3]] = (outputs[b][:,[1, 3]] - offset_top) / resize_ratio
-        return outputs, mem_x
+        if self.aggregation_method=="relatedatten_memenhance":
+            return outputs, mem_x
+        else:
+            return outputs
     
-    def inference(self, images):
+    def inference(self, images, mem_queue_x=None):
         with torch.no_grad():
             images = torch.from_numpy(images)
             if self.cuda:
                 images = images.cuda()
-            predictions = self.net(images)
+            if self.aggregation_method=="relatedatten_memenhance":
+                predictions = self.net(images, mem_queue_x)
+            else:
+                predictions = self.net(images)
         return predictions
 
 

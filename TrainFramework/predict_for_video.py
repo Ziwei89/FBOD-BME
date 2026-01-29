@@ -57,6 +57,7 @@ if __name__ == "__main__":
     mem_queue_length = opt.mem_queue_length
     backbone_name = opt.backbone_name
     fusion_method = opt.fusion_method
+    aggregation_method = opt.aggregation_method
 
     # assign_method: The label assign method. binary_assign, guassian_assign or auto_assign
     if opt.assign_method == "binary_assign":
@@ -81,11 +82,11 @@ if __name__ == "__main__":
     
     # FB_detector parameters
     # model_input_size=(384,672),
-    # input_img_num=5, aggregation_output_channels=32, input_mode="GRG",mem_x_channels=4, mem_queue_length=3, backbone_name="cspdarknet53", fusion_method="concat",
+    # input_img_num=5, aggregation_output_channels=32, aggregation_method="relatedatten_memenhance", input_mode="GRG",mem_x_channels=4, mem_queue_length=3, backbone_name="cspdarknet53", fusion_method="concat",
     # abbr_assign_method="ba", Add_name="0812_1", model_name="FB_object_detect_model.pth",
     # scale=80.
     fb_detector = FB_detector(model_input_size=model_input_size,
-                              input_img_num=input_img_num, aggregation_output_channels=aggregation_output_channels, input_mode=input_mode,
+                              input_img_num=input_img_num, aggregation_output_channels=aggregation_output_channels, input_mode=input_mode, aggregation_method=aggregation_method,
                               mem_x_channels=mem_x_channels, mem_queue_length=mem_queue_length, backbone_name=backbone_name, fusion_method=fusion_method,
                               abbr_assign_method=abbr_assign_method, Add_name=Add_name, model_name=model_name)
     
@@ -110,7 +111,8 @@ if __name__ == "__main__":
     #################################################
     frame_id = 0
 
-    mem_x_q = init_mem_x_q(queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]))
+    if aggregation_method=="relatedatten_memenhance":
+            mem_x_q = init_mem_x_q(queue_size=3, model_input_size=(model_input_size[0], model_input_size[1]))
     while (True):
         ret,frame=cap.read()
         if ret != True:
@@ -133,12 +135,13 @@ if __name__ == "__main__":
                 image_opencv = cv2.cvtColor(np.asarray(write_img),cv2.COLOR_RGB2BGR)
                 _ = image_q.get()
 
-                mem_queue_x = concat_mem_x_q(mem_x_q)
-
-                outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
-                
-                _ = mem_x_q.get()
-                mem_x_q.put(mem_x)
+                if aggregation_method=="relatedatten_memenhance":
+                    mem_queue_x = concat_mem_x_q(mem_x_q)
+                    outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
+                    _ = mem_x_q.get()
+                    mem_x_q.put(mem_x)
+                else:
+                    outputs = fb_detector.detect_image(model_input, raw_image_shape=raw_image_shape)
 
                 detect_bboxes = outputs[0][:,:4]
                 for box in detect_bboxes:
@@ -163,12 +166,13 @@ if __name__ == "__main__":
                     image_opencv = cv2.cvtColor(np.asarray(write_img),cv2.COLOR_RGB2BGR) 
                     _ = image_q.get()
 
-                    mem_queue_x = concat_mem_x_q(mem_x_q)
-
-                    outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
-                    
-                    _ = mem_x_q.get()
-                    mem_x_q.put(mem_x)
+                    if aggregation_method=="relatedatten_memenhance":
+                        mem_queue_x = concat_mem_x_q(mem_x_q)
+                        outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
+                        _ = mem_x_q.get()
+                        mem_x_q.put(mem_x)
+                    else:
+                        outputs = fb_detector.detect_image(model_input, raw_image_shape=raw_image_shape)
 
                     detect_bboxes = outputs[0][:,:4]
                     for box in detect_bboxes:
