@@ -2,13 +2,14 @@ import numpy as np
 import cv2
 import os
 from FB_detector import FB_detector
-from utils.common import GetMiddleImg_ModelInput
+from utils.common import GetMiddleImg_ModelInput, draw_results
 from config.opts import opts
 from queue import Queue
 from PIL import Image
 import copy
 import xml.etree.ElementTree as ET
 import torch
+import time
 
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
@@ -136,18 +137,26 @@ if __name__ == "__main__":
                 _ = image_q.get()
 
                 if aggregation_method=="relatedatten_memenhance":
+                    t1 = time.time()
                     mem_queue_x = concat_mem_x_q(mem_x_q)
                     outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
                     _ = mem_x_q.get()
                     mem_x_q.put(mem_x)
+                    t2 = time.time()
+                    print("fps:", 1/(t2-t1))
                 else:
+                    t1 = time.time()
                     outputs = fb_detector.detect_image(model_input, raw_image_shape=raw_image_shape)
+                    t2 = time.time()
+                    print("fps:", 1/(t2-t1))
 
-                detect_bboxes = outputs[0][:,:4]
-                for box in detect_bboxes:
-                    cv2.rectangle(image_opencv,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)#x1,y1,x2,y2
-                for label_box in label_bboxes:
-                    cv2.rectangle(image_opencv,(int(label_box[0]),int(label_box[1])),(int(label_box[2]),int(label_box[3])),(0,255,0),2)#x1,y1,x2,y2
+                # detect_bboxes = outputs[0][:,:4]
+                # for box in detect_bboxes:
+                #     cv2.rectangle(image_opencv,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)#x1,y1,x2,y2
+                # for label_box in label_bboxes:
+                #     cv2.rectangle(image_opencv,(int(label_box[0]),int(label_box[1])),(int(label_box[2]),int(label_box[3])),(0,255,0),2)#x1,y1,x2,y2
+                # videowriter.write(image_opencv)
+                image_opencv = draw_results(image_opencv, outputs[0])
                 videowriter.write(image_opencv)
             if frame_id == frame_count: ## Output the detection results of the last int(continus_num/2) frames of the video.
                 for n in range(1, int(input_img_num/2)+1):
@@ -167,17 +176,25 @@ if __name__ == "__main__":
                     _ = image_q.get()
 
                     if aggregation_method=="relatedatten_memenhance":
+                        t1 = time.time()
                         mem_queue_x = concat_mem_x_q(mem_x_q)
                         outputs, mem_x = fb_detector.detect_image(model_input, mem_queue_x, raw_image_shape=raw_image_shape)
                         _ = mem_x_q.get()
                         mem_x_q.put(mem_x)
+                        t2 = time.time()
+                        print("fps:", 1/(t2-t1))
                     else:
+                        t1 = time.time()
                         outputs = fb_detector.detect_image(model_input, raw_image_shape=raw_image_shape)
+                        t2 = time.time()
+                        print("fps:", 1/(t2-t1))
 
-                    detect_bboxes = outputs[0][:,:4]
-                    for box in detect_bboxes:
-                        cv2.rectangle(image_opencv,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)#x1,y1,x2,y2
-                    for label_box in label_bboxes:
-                        cv2.rectangle(image_opencv,(int(label_box[0]),int(label_box[1])),(int(label_box[2]),int(label_box[3])),(0,255,0),2)#x1,y1,x2,y2
+                    # detect_bboxes = outputs[0][:,:4]
+                    # for box in detect_bboxes:
+                    #     cv2.rectangle(image_opencv,(int(box[0]),int(box[1])),(int(box[2]),int(box[3])),(0,0,255),2)#x1,y1,x2,y2
+                    # for label_box in label_bboxes:
+                    #     cv2.rectangle(image_opencv,(int(label_box[0]),int(label_box[1])),(int(label_box[2]),int(label_box[3])),(0,255,0),2)#x1,y1,x2,y2
+                    # videowriter.write(image_opencv)
+                    image_opencv = draw_results(image_opencv, outputs[0])
                     videowriter.write(image_opencv)
     videowriter.release()

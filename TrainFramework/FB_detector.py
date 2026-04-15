@@ -74,14 +74,14 @@ class FB_detector(object):
             images = torch.from_numpy(images)
             if self.cuda:
                 images = images.cuda()
-            t1 = time.time()
+            # t1 = time.time()
             if self.aggregation_method=="relatedatten_memenhance":
                 predictions = self.net(images, mem_queue_x)
                 mem_x = predictions[2]
             else:
                 predictions = self.net(images)
-            t2 = time.time()
-            print("run model: ", t2-t1)
+            # t2 = time.time()
+            # print("run model: ", t2-t1)
 
         outputs = self.boxdecoder(predictions)
         # print("outputs")
