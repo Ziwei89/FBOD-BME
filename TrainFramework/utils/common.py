@@ -4,6 +4,8 @@ import numpy as np
 import copy
 from PIL import Image, ImageDraw
 import dataloader.augmentations as DataAug
+import torch
+import torch.nn as nn
 
 def letterbox_image(image, size):
     iw, ih = image.size
@@ -43,6 +45,17 @@ def load_data(line, image_path, frame_num, image_size):
         bboxes = np.array([np.array(list(map(float, box.split(',')))) for box in line[1:]])
         # images, bboxes = DataAug.Resize(image_size, True)(np.copy(images), np.copy(bboxes))
     return images, bboxes, first_img_name
+
+def load_model(model, model_path, cuda=True):
+    device = torch.device('cuda' if cuda else 'cpu')
+    state_dict = torch.load(model_path, map_location=device)
+    model.load_state_dict(state_dict)
+    if cuda:
+        os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+        model = nn.DataParallel(model)
+        model = model.cuda()
+    print('{} model loaded.'.format(model_path))
+    return model
 
 # np.set_printoptions(threshold=np.inf)
 # This function is different from obj detection stage.

@@ -22,6 +22,8 @@ import copy
 import random
 from queue import Queue
 import math
+from utils.common import load_model
+
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 def iterate_n_elements(lst, n):
@@ -513,7 +515,20 @@ if __name__ == "__main__":
         if (epoch+1)>=30:
             draw_curve_ap50(epoch+1, AP_50, log_pic_name_ap50)
         lr_scheduler.step()
-    
+    model_names = os.listdir(save_model_dir)
+    for model_name in model_names:
+        if "Epoch" in model_name:
+            pass
+        else:
+            continue
+        if "%.4f"%(largest_AP_50) == model_name.split("AP_50_")[1].split(".pth")[0]:
+            largest_AP_50_model_name = model_name
+            break
+    # To load the largest_AP_50 model
+    net = load_model(model, save_model_dir + largest_AP_50_model_name, cuda=Cuda)
+    net = net.train()
+
+
     if opt.aggregation_method=="relatedatten_memenhance":
         lr = opt.lr * (0.95**middle_Epoch)
         optimizer = optim.Adam(net.parameters(),lr,weight_decay=5e-4)
@@ -578,18 +593,24 @@ if __name__ == "__main__":
 
             print('Epoch:'+ str(epoch+1) + '/' + str(end_Epoch))
             print('Total Loss: %.4f || Val Loss: %.4f  || AP_50: %.4f  || REC_50: %.4f  || PRE_50: %.4f' % (train_loss, val_loss, AP_50, REC_50, PRE_50))
-            if (epoch+1)%10 == 0:
-                if largest_AP_50 < AP_50:
-                    largest_AP_50 = AP_50
+            
+            if largest_AP_50 < AP_50:
+                largest_AP_50 = AP_50
+                largest_AP_50_model_name = 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50)
                 print('Saving state, iter:', str(epoch+1))
-                torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50))
+                torch.save(model.state_dict(), save_model_dir + largest_AP_50_model_name)
                 torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
             else:
-                if largest_AP_50 < AP_50:
-                    largest_AP_50 = AP_50
+                if (epoch+1)%10 == 0:
                     print('Saving state, iter:', str(epoch+1))
                     torch.save(model.state_dict(), save_model_dir + 'Epoch%d-Total_Loss%.4f-Val_Loss%.4f-AP_50_%.4f.pth'%((epoch+1),train_loss,val_loss,AP_50))
                     torch.save(model.state_dict(), save_model_dir + 'FB_object_detect_model.pth')
+            
+            if largest_AP_50 > AP_50:
+                # To load the largest_AP_50 model
+                net = load_model(model, save_model_dir + largest_AP_50_model_name, cuda=Cuda)
+                net = net.train()
+
             if (epoch+1)>=2:
                 draw_curve_loss(epoch+1, train_loss.item(), val_loss.item(), log_pic_name_loss)
             if (epoch+1)>=30:
